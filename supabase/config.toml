@@ -1,1 +1,7 @@
 project_id = "lwjtuzysxajewugkctny"
+
+[functions.stock-market]
+verify_jwt = false
+
+[functions.gold-prices]
+verify_jwt = false
