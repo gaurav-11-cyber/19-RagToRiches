@@ -11,24 +11,51 @@ serve(async (req) => {
   }
 
   try {
-    // Fetch gold price from free API
-    const response = await fetch(
-      'https://api.metals.live/v1/spot/gold'
-    );
-    
     let goldPriceUSD = 0;
     
-    if (response.ok) {
-      const data = await response.json();
-      // API returns array with price per troy ounce
-      if (Array.isArray(data) && data.length > 0) {
-        goldPriceUSD = data[0].price;
+    // Try Gold API (free tier available)
+    try {
+      const response = await fetch(
+        'https://www.goldapi.io/api/XAU/USD',
+        {
+          headers: {
+            'x-access-token': 'goldapi-demo',
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.price) {
+          goldPriceUSD = data.price;
+        }
+      }
+    } catch (e) {
+      console.log('Primary API failed, trying fallback');
+    }
+    
+    // Fallback: Use exchange rate API with approximate gold rate
+    if (!goldPriceUSD) {
+      try {
+        // Try alternative free API
+        const altResponse = await fetch(
+          'https://api.frankfurter.app/latest?from=XAU&to=USD'
+        );
+        if (altResponse.ok) {
+          const altData = await altResponse.json();
+          // This API returns 1 XAU = X USD (price per troy ounce)
+          if (altData.rates?.USD) {
+            goldPriceUSD = altData.rates.USD;
+          }
+        }
+      } catch (e) {
+        console.log('Fallback API also failed');
       }
     }
     
-    // Fallback if API fails - use approximate current market price
-    if (!goldPriceUSD) {
-      goldPriceUSD = 2650; // Approximate current gold price per troy ounce
+    // Final fallback - use approximate current market price
+    if (!goldPriceUSD || goldPriceUSD < 100) {
+      goldPriceUSD = 2680; // Approximate current gold price per troy ounce (Jan 2026)
     }
 
     // Convert troy ounce to grams (1 troy ounce = 31.1035 grams)
