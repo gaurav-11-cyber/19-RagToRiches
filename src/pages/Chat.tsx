@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MoreVertical, Loader2 } from 'lucide-react';
+import { ArrowLeft, MoreVertical } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ChatInput from '@/components/chat/ChatInput';
 import ChatBubble from '@/components/chat/ChatBubble';
+import FileUploadDialog from '@/components/chat/FileUploadDialog';
 import { useToast } from '@/hooks/use-toast';
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -26,6 +26,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [chatTitle, setChatTitle] = useState('New Chat');
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -322,10 +323,17 @@ const Chat = () => {
       <footer className="p-4 pb-8">
         <ChatInput 
           onSend={handleSend} 
+          onFileUpload={() => setShowUploadDialog(true)}
           disabled={isLoading}
           placeholder="Ask anything...."
         />
       </footer>
+
+      {/* File Upload Dialog */}
+      <FileUploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+      />
     </div>
   );
 };
