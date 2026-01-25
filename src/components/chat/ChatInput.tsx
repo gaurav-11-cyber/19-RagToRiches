@@ -27,6 +27,15 @@ const ChatInput = ({ onSend, onFileUpload, disabled = false, placeholder = "Ask 
 
   return (
     <div className="glass-input rounded-full px-4 py-3 flex items-center gap-3">
+      {onFileUpload && (
+        <button 
+          onClick={onFileUpload}
+          className="p-2 rounded-full hover:bg-gray-200/50 transition-colors"
+          disabled={disabled}
+        >
+          <Paperclip className="w-5 h-5 text-gray-500" />
+        </button>
+      )}
       <input
         type="text"
         value={message}
@@ -37,15 +46,6 @@ const ChatInput = ({ onSend, onFileUpload, disabled = false, placeholder = "Ask 
         className="flex-1 bg-transparent outline-none text-gray-700 placeholder:text-gray-500"
       />
       <div className="flex items-center gap-2">
-        {onFileUpload && (
-          <button 
-            onClick={onFileUpload}
-            className="p-2 rounded-full hover:bg-gray-200/50 transition-colors"
-            disabled={disabled}
-          >
-            <Paperclip className="w-5 h-5 text-gray-500" />
-          </button>
-        )}
         <button 
           className="p-2 rounded-full hover:bg-gray-200/50 transition-colors"
           disabled={disabled}
