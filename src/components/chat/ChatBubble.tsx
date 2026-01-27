@@ -1,5 +1,6 @@
 import { User, Database, Globe, FileText, TrendingUp, Newspaper, Landmark } from 'lucide-react';
 import SaveAnswerButton from './SaveAnswerButton';
+import ExplainabilityDialog from './ExplainabilityDialog';
 import { Badge } from '@/components/ui/badge';
 
 interface Evidence {
@@ -168,16 +169,24 @@ const ChatBubble = ({
               </div>
             )}
 
-            {/* Save button */}
-            {content && previousUserMessage && (
-              <div className="flex justify-end pt-2 border-t border-gray-100 mt-2">
-                <SaveAnswerButton
-                  question={previousUserMessage}
-                  answer={content}
-                  sourceInfo={{ evidence, confidence }}
-                  chatId={chatId}
-                  messageId={messageId}
+            {/* Action buttons */}
+            {content && (
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-2 gap-2">
+                <ExplainabilityDialog
+                  content={content}
+                  evidence={evidence}
+                  confidence={confidence}
+                  dataSources={dataSources}
                 />
+                {previousUserMessage && (
+                  <SaveAnswerButton
+                    question={previousUserMessage}
+                    answer={content}
+                    sourceInfo={{ evidence, confidence }}
+                    chatId={chatId}
+                    messageId={messageId}
+                  />
+                )}
               </div>
             )}
           </div>
