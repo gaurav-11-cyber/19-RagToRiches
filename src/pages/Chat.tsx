@@ -15,7 +15,7 @@ interface Message {
   confidence?: string;
 }
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rag-chat`;
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/hybrid-chat`;
 
 const Chat = () => {
   const { chatId } = useParams();
