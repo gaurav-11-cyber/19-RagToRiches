@@ -5,11 +5,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Keywords for detecting query intent
-const STOCK_KEYWORDS = ['stock', 'stocks', 'market', 'share', 'shares', 'nifty', 'sensex', 'dow', 'nasdaq', 's&p', 'trading', 'invest', 'portfolio', 'equity', 'bull', 'bear', 'ipo', 'dividend'];
-const GOLD_KEYWORDS = ['gold', 'gold price', 'gold rate', 'sona', 'bullion', 'precious metal', '24k', '22k', '18k', 'karat', 'carat', 'jewel', 'jewelry'];
-const NEWS_KEYWORDS = ['news', 'latest', 'headlines', 'breaking', 'current events', 'happening', 'today', 'recent', 'update', 'updates'];
-const POLITICS_KEYWORDS = ['politics', 'political', 'election', 'government', 'parliament', 'congress', 'minister', 'president', 'prime minister', 'policy', 'vote', 'voting', 'campaign', 'party', 'democrat', 'republican', 'bjp', 'congress', 'legislation'];
+// Keywords for detecting query intent (multilingual)
+const STOCK_KEYWORDS = [
+  // English
+  'stock', 'stocks', 'market', 'share', 'shares', 'nifty', 'sensex', 'dow', 'nasdaq', 's&p', 'trading', 'invest', 'portfolio', 'equity', 'bull', 'bear', 'ipo', 'dividend',
+  // Hindi/Hinglish
+  'शेयर', 'बाजार', 'निफ्टी', 'सेंसेक्स', 'स्टॉक', 'निवेश', 'share bazaar', 'stock market kya hai',
+  // Urdu
+  'حصص', 'مارکیٹ', 'سرمایہ کاری'
+];
+const GOLD_KEYWORDS = [
+  // English
+  'gold', 'gold price', 'gold rate', 'bullion', 'precious metal', '24k', '22k', '18k', 'karat', 'carat', 'jewel', 'jewelry',
+  // Hindi/Hinglish
+  'सोना', 'सोने का भाव', 'सोने की कीमत', 'gold rate kya hai', 'aaj sona kitne ka hai', 'sona', 'gold ka rate',
+  // Urdu
+  'سونا', 'سونے کی قیمت', 'طلائی'
+];
+const NEWS_KEYWORDS = [
+  // English
+  'news', 'latest', 'headlines', 'breaking', 'current events', 'happening', 'today', 'recent', 'update', 'updates',
+  // Hindi/Hinglish
+  'खबर', 'समाचार', 'ताजा खबर', 'ब्रेकिंग न्यूज', 'aaj ki khabar', 'latest news kya hai', 'kya hua aaj',
+  // Urdu
+  'خبر', 'تازہ خبریں', 'آج کی خبر'
+];
+const POLITICS_KEYWORDS = [
+  // English
+  'politics', 'political', 'election', 'government', 'parliament', 'congress', 'minister', 'president', 'prime minister', 'policy', 'vote', 'voting', 'campaign', 'party', 'democrat', 'republican', 'bjp', 'legislation',
+  // Hindi/Hinglish
+  'राजनीति', 'चुनाव', 'सरकार', 'संसद', 'मंत्री', 'प्रधानमंत्री', 'मोदी', 'राहुल', 'election kab hai', 'politics kya hai',
+  // Urdu
+  'سیاست', 'انتخابات', 'حکومت', 'پارلیمنٹ', 'وزیر اعظم'
+];
 
 interface QueryIntent {
   needsStockData: boolean;
@@ -17,6 +45,25 @@ interface QueryIntent {
   needsNewsData: boolean;
   needsPoliticsData: boolean;
   needsRAG: boolean;
+  detectedLanguage: string;
+}
+
+// Language detection based on script and common patterns
+function detectLanguage(text: string): string {
+  // Check for Devanagari script (Hindi)
+  if (/[\u0900-\u097F]/.test(text)) {
+    return 'hindi';
+  }
+  // Check for Arabic/Urdu script
+  if (/[\u0600-\u06FF\u0750-\u077F]/.test(text)) {
+    return 'urdu';
+  }
+  // Check for Hinglish patterns (Roman script with Hindi words/patterns)
+  const hinglishPatterns = /\b(kya|hai|hain|kaise|kab|kitna|kitne|aaj|kal|mein|ka|ki|ke|ko|se|par|aur|ya|nahi|nahin|bahut|accha|theek|sab|bhi|yeh|woh|kuch|kaisa|kaisi|kahan|kyun|abhi|phir|lekin|magar|toh|na|ji|haan|arre|yaar|bhai|dost)\b/i;
+  if (hinglishPatterns.test(text)) {
+    return 'hinglish';
+  }
+  return 'english';
 }
 
 function detectIntent(query: string): QueryIntent {
@@ -36,6 +83,7 @@ function detectIntent(query: string): QueryIntent {
     needsNewsData,
     needsPoliticsData,
     needsRAG,
+    detectedLanguage: detectLanguage(query),
   };
 }
 
@@ -225,8 +273,31 @@ serve(async (req) => {
       }
     }
 
-    // Build the system prompt
+    // Build the system prompt with multilingual support
+    const languageInstructions = {
+      english: "Respond in English.",
+      hindi: "हिंदी में जवाब दें। (Respond in Hindi using Devanagari script.)",
+      hinglish: "Hinglish mein jawab do - Roman script mein Hindi/English mix use karo. (Respond in Hinglish using Roman script with Hindi-English mix.)",
+      urdu: "اردو میں جواب دیں۔ (Respond in Urdu using Arabic script.)"
+    };
+
+    const detectedLang = intent.detectedLanguage;
+    const langInstruction = languageInstructions[detectedLang as keyof typeof languageInstructions] || languageInstructions.english;
+
     const systemPrompt = `You are FS RAG, a hybrid AI assistant that combines RAG (Retrieval-Augmented Generation) with live data APIs. You provide accurate, evidence-based answers using multiple data sources.
+
+LANGUAGE INSTRUCTION:
+🌐 Detected language: ${detectedLang.toUpperCase()}
+${langInstruction}
+
+IMPORTANT LANGUAGE RULES:
+1. ALWAYS respond in the SAME language as the user's query
+2. Supported languages: English, Hindi (हिंदी), Hinglish (Roman Hindi), Urdu (اردو)
+3. Do NOT translate unless the user explicitly asks for translation
+4. Keep technical terms and data (numbers, dates, names) as-is
+5. For Hindi: Use Devanagari script (देवनागरी)
+6. For Hinglish: Use Roman script with Hindi-English mix (like "aaj gold ka rate kya hai")
+7. For Urdu: Use Arabic/Nastaliq script (نستعلیق)
 
 AVAILABLE DATA SOURCES:
 ${dataSources.length > 0 ? dataSources.map(s => `• ${s}`).join('\n') : '• General Knowledge (no specific data source)'}
@@ -237,12 +308,15 @@ CRITICAL RULES:
 3. If combining both: Clearly separate information from each source
 4. ALWAYS indicate the data source used in your response
 5. NEVER make up or hallucinate information
-6. If the answer is not available from any source, respond with: "This information is not available from the current data sources."
+6. If the answer is not available from any source, respond appropriately in the detected language
 
 RESPONSE FORMAT:
-Start every response with a data source indicator:
+Start every response with a data source indicator (adapt to detected language):
 
 📌 **Data Source(s):** [List the sources used]
+${detectedLang === 'hindi' ? '📌 **डेटा स्रोत:** [उपयोग किए गए स्रोत]' : ''}
+${detectedLang === 'urdu' ? '📌 **ڈیٹا ذرائع:** [استعمال شدہ ذرائع]' : ''}
+${detectedLang === 'hinglish' ? '📌 **Data Source(s):** [Jo sources use kiye]' : ''}
 
 Then provide your answer followed by:
 
