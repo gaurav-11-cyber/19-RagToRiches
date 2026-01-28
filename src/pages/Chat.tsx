@@ -1,12 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MoreVertical } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Globe } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ChatInput from '@/components/chat/ChatInput';
 import ChatBubble from '@/components/chat/ChatBubble';
 import FileUploadDialog from '@/components/chat/FileUploadDialog';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguagePreference, LANGUAGE_OPTIONS, Language } from '@/hooks/useLanguagePreference';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -28,6 +35,7 @@ const Chat = () => {
   const [chatTitle, setChatTitle] = useState('New Chat');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { language, setLanguage } = useLanguagePreference();
 
   useEffect(() => {
     const fetchChat = async () => {
@@ -124,6 +132,7 @@ const Chat = () => {
             content: m.content,
           })),
           documents: documents || [],
+          languagePreference: language,
         }),
       });
 
@@ -276,9 +285,33 @@ const Chat = () => {
         <h1 className="text-lg font-medium text-foreground truncate max-w-[200px]">
           {chatTitle}
         </h1>
-        <button className="p-2 rounded-full hover:bg-white/10 transition-colors">
-          <MoreVertical className="w-6 h-6 text-foreground" />
-        </button>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 rounded-full hover:bg-white/10 transition-colors flex items-center gap-1">
+                <Globe className="w-5 h-5 text-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  {LANGUAGE_OPTIONS.find(l => l.value === language)?.nativeLabel}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[140px]">
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => setLanguage(opt.value)}
+                  className={language === opt.value ? 'bg-accent/10' : ''}
+                >
+                  <span className="mr-2">{opt.nativeLabel}</span>
+                  {language === opt.value && <span className="ml-auto text-primary">✓</span>}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button className="p-2 rounded-full hover:bg-white/10 transition-colors">
+            <MoreVertical className="w-6 h-6 text-foreground" />
+          </button>
+        </div>
       </header>
 
       {/* Messages */}

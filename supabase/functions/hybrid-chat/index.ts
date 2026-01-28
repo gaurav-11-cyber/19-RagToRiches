@@ -214,7 +214,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, documents } = await req.json();
+    const { messages, documents, languagePreference } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
@@ -227,9 +227,16 @@ serve(async (req) => {
     const latestUserMessage = messages.filter((m: any) => m.role === 'user').pop();
     const userQuery = latestUserMessage?.content || '';
     
-    // Detect query intent
+    // Detect query intent (includes auto language detection)
     const intent = detectIntent(userQuery);
+    
+    // Override language if user has set a preference (not 'auto')
+    const effectiveLanguage = languagePreference && languagePreference !== 'auto' 
+      ? languagePreference 
+      : intent.detectedLanguage;
+    
     console.log("Detected intent:", intent);
+    console.log("Language preference:", languagePreference, "-> Effective:", effectiveLanguage);
 
     // Fetch live data based on intent
     const liveDataPromises: Promise<string>[] = [];
@@ -281,17 +288,16 @@ serve(async (req) => {
       urdu: "اردو میں جواب دیں۔ (Respond in Urdu using Arabic script.)"
     };
 
-    const detectedLang = intent.detectedLanguage;
-    const langInstruction = languageInstructions[detectedLang as keyof typeof languageInstructions] || languageInstructions.english;
+    const langInstruction = languageInstructions[effectiveLanguage as keyof typeof languageInstructions] || languageInstructions.english;
 
     const systemPrompt = `You are FS RAG, a hybrid AI assistant that combines RAG (Retrieval-Augmented Generation) with live data APIs. You provide accurate, evidence-based answers using multiple data sources.
 
 LANGUAGE INSTRUCTION:
-🌐 Detected language: ${detectedLang.toUpperCase()}
+🌐 Response language: ${effectiveLanguage.toUpperCase()}
 ${langInstruction}
 
 IMPORTANT LANGUAGE RULES:
-1. ALWAYS respond in the SAME language as the user's query
+1. ALWAYS respond in the specified language (${effectiveLanguage.toUpperCase()})
 2. Supported languages: English, Hindi (हिंदी), Hinglish (Roman Hindi), Urdu (اردو)
 3. Do NOT translate unless the user explicitly asks for translation
 4. Keep technical terms and data (numbers, dates, names) as-is
@@ -308,15 +314,15 @@ CRITICAL RULES:
 3. If combining both: Clearly separate information from each source
 4. ALWAYS indicate the data source used in your response
 5. NEVER make up or hallucinate information
-6. If the answer is not available from any source, respond appropriately in the detected language
+6. If the answer is not available from any source, respond appropriately in the response language
 
 RESPONSE FORMAT:
-Start every response with a data source indicator (adapt to detected language):
+Start every response with a data source indicator (adapt to response language):
 
 📌 **Data Source(s):** [List the sources used]
-${detectedLang === 'hindi' ? '📌 **डेटा स्रोत:** [उपयोग किए गए स्रोत]' : ''}
-${detectedLang === 'urdu' ? '📌 **ڈیٹا ذرائع:** [استعمال شدہ ذرائع]' : ''}
-${detectedLang === 'hinglish' ? '📌 **Data Source(s):** [Jo sources use kiye]' : ''}
+${effectiveLanguage === 'hindi' ? '📌 **डेटा स्रोत:** [उपयोग किए गए स्रोत]' : ''}
+${effectiveLanguage === 'urdu' ? '📌 **ڈیٹا ذرائع:** [استعمال شدہ ذرائع]' : ''}
+${effectiveLanguage === 'hinglish' ? '📌 **Data Source(s):** [Jo sources use kiye]' : ''}
 
 Then provide your answer followed by:
 

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, LogOut, FileText, Trash2 } from 'lucide-react';
+import { ArrowLeft, User, LogOut, FileText, Trash2, Globe } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import BottomNav from '@/components/ui/bottom-nav';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguagePreference, LANGUAGE_OPTIONS, Language } from '@/hooks/useLanguagePreference';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,12 +18,20 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const Settings = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isDeleting, setIsDeleting] = useState(false);
+  const { language, setLanguage } = useLanguagePreference();
 
   const handleSignOut = async () => {
     await signOut();
@@ -72,6 +81,31 @@ const Settings = () => {
               <h3 className="font-semibold text-gray-800">Account</h3>
               <p className="text-sm text-gray-600">{user?.email}</p>
             </div>
+          </div>
+        </div>
+
+        {/* Language Preference */}
+        <div className="glass-card rounded-2xl p-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+              <Globe className="w-6 h-6 text-accent" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-gray-800">Response Language</h3>
+              <p className="text-sm text-gray-500">Choose AI response language</p>
+            </div>
+            <Select value={language} onValueChange={(val) => setLanguage(val as Language)}>
+              <SelectTrigger className="w-32 glass-card border-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.nativeLabel}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
