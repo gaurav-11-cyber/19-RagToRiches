@@ -8,6 +8,11 @@ import ChatHistoryTag from '@/components/dashboard/ChatHistoryTag';
 import ExploreCard from '@/components/dashboard/ExploreCard';
 import { Button } from '@/components/ui/button';
 
+import exploreStockMarket from '@/assets/explore-stock-market.jpg';
+import exploreGoldPrices from '@/assets/explore-gold-prices.jpg';
+import exploreLatestNews from '@/assets/explore-latest-news.jpg';
+import explorePolitics from '@/assets/explore-politics.jpg';
+
 interface Chat {
   id: string;
   title: string;
@@ -164,10 +169,10 @@ const Dashboard = () => {
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <ExploreCard title="Stock Market Updates" onClick={() => navigate('/stock-market')} />
-            <ExploreCard title="Gold Prices" onClick={() => navigate('/gold-prices')} />
-            <ExploreCard title="Latest News" onClick={() => navigate('/latest-news')} />
-            <ExploreCard title="Politics" onClick={() => navigate('/politics')} />
+            <ExploreCard imageSrc={exploreStockMarket} alt="Stock Market Updates" onClick={() => navigate('/stock-market')} />
+            <ExploreCard imageSrc={exploreGoldPrices} alt="Gold Prices" onClick={() => navigate('/gold-prices')} />
+            <ExploreCard imageSrc={exploreLatestNews} alt="Latest News" onClick={() => navigate('/latest-news')} />
+            <ExploreCard imageSrc={explorePolitics} alt="Politics" onClick={() => navigate('/politics')} />
           </div>
         </section>
       </main>
