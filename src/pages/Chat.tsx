@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, MoreVertical, Globe } from 'lucide-react';
+import { ArrowLeft, Globe, Share2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import ChatInput from '@/components/chat/ChatInput';
@@ -308,8 +308,19 @@ const Chat = () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className="p-2 rounded-full hover:bg-white/10 transition-colors">
-            <MoreVertical className="w-6 h-6 text-foreground" />
+          <button 
+            onClick={() => {
+              const shareUrl = `${window.location.origin}/chat/${chatId}`;
+              navigator.clipboard.writeText(shareUrl);
+              toast({
+                title: 'Link copied!',
+                description: 'Chat link has been copied to clipboard.',
+              });
+            }}
+            className="p-2 rounded-full hover:bg-white/10 transition-colors"
+            title="Share Chat"
+          >
+            <Share2 className="w-5 h-5 text-foreground" />
           </button>
         </div>
       </header>
