@@ -1,17 +1,20 @@
 interface ExploreCardProps {
-  title?: string;
+  imageSrc: string;
+  alt: string;
   onClick?: () => void;
 }
 
-const ExploreCard = ({ title, onClick }: ExploreCardProps) => {
+const ExploreCard = ({ imageSrc, alt, onClick }: ExploreCardProps) => {
   return (
     <button
       onClick={onClick}
-      className="aspect-square glass-card rounded-2xl flex items-center justify-center hover:bg-white/90 transition-colors p-4"
+      className="aspect-square rounded-2xl overflow-hidden hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
     >
-      {title && (
-        <span className="text-sm text-gray-600 text-center">{title}</span>
-      )}
+      <img 
+        src={imageSrc} 
+        alt={alt}
+        className="w-full h-full object-cover"
+      />
     </button>
   );
 };
