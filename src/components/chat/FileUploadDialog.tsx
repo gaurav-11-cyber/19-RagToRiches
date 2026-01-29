@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, Image, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Image, Loader2, CheckCircle, AlertCircle, Video, Music } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +13,7 @@ interface FileUploadDialogProps {
   onUploadComplete?: () => void;
 }
 
-type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
+type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'success' | 'error';
 
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -22,9 +22,30 @@ const ALLOWED_TYPES = [
   'image/jpeg',
   'image/jpg',
   'image/webp',
+  // Video formats
+  'video/mp4',
+  'video/quicktime', // .mov
+  'video/webm',
+  // Audio formats
+  'audio/mpeg', // .mp3
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp4', // .m4a
+  'audio/x-m4a',
 ];
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB for video/audio
+
+const MEDIA_TYPES = [
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/mp4',
+  'audio/x-m4a',
+];
 
 const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDialogProps) => {
   const { user } = useAuth();
@@ -50,10 +71,14 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return `Unsupported file type. Please upload PDF, TXT, PNG, JPG, or WEBP files.`;
+      return `Unsupported file type. Please upload PDF, TXT, PNG, JPG, WEBP, MP4, MOV, WEBM, MP3, WAV, or M4A files.`;
     }
-    if (file.size > MAX_FILE_SIZE) {
-      return `File too large. Maximum size is 10MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`;
+    // Higher limit for media files
+    const isMedia = MEDIA_TYPES.includes(file.type);
+    const sizeLimit = isMedia ? MAX_FILE_SIZE : 10 * 1024 * 1024;
+    const sizeLimitLabel = isMedia ? '50MB' : '10MB';
+    if (file.size > sizeLimit) {
+      return `File too large. Maximum size is ${sizeLimitLabel}. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`;
     }
     return null;
   };
@@ -97,6 +122,8 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
     setUploadStatus('uploading');
     setUploadProgress(10);
 
+    const isMedia = MEDIA_TYPES.includes(selectedFile.type);
+
     try {
       // Upload to storage
       const filePath = `${user.id}/${Date.now()}-${selectedFile.name}`;
@@ -107,21 +134,22 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
         .upload(filePath, selectedFile);
 
       if (uploadError) throw uploadError;
-      setUploadProgress(60);
+      setUploadProgress(50);
 
-      // Extract text content
+      // Extract text content based on file type
       let content = '';
       if (selectedFile.type === 'text/plain') {
         content = await selectedFile.text();
       } else if (selectedFile.type === 'application/pdf') {
-        // For PDFs, we'll store basic metadata - actual extraction happens server-side
         content = `[PDF Document: ${selectedFile.name}]`;
       } else if (selectedFile.type.startsWith('image/')) {
-        // For images, we'll store basic metadata - OCR can be done server-side
         content = `[Image: ${selectedFile.name}]`;
+      } else if (isMedia) {
+        // For media files, we'll trigger transcription after saving
+        content = `[Processing: ${selectedFile.name}]`;
       }
 
-      setUploadProgress(80);
+      setUploadProgress(60);
 
       // Save to database
       const { error: dbError } = await supabase
@@ -137,13 +165,59 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
 
       if (dbError) throw dbError;
 
+      // If it's a media file, trigger transcription
+      if (isMedia) {
+        setUploadStatus('transcribing');
+        setUploadProgress(70);
+
+        const transcribeResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-media`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              filePath,
+              fileType: selectedFile.type,
+              fileName: selectedFile.name,
+              userId: user.id,
+            }),
+          }
+        );
+
+        const transcribeResult = await transcribeResponse.json();
+        
+        if (!transcribeResponse.ok || !transcribeResult.success) {
+          console.error('Transcription failed:', transcribeResult);
+          // Update the document with error status but don't fail the upload
+          await supabase
+            .from('documents')
+            .update({ content: `[Transcription failed for: ${selectedFile.name}]` })
+            .eq('file_path', filePath)
+            .eq('user_id', user.id);
+          
+          toast({
+            title: 'Media uploaded with warning',
+            description: 'File uploaded but transcription failed. You may have limited ability to query this file.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Media transcribed successfully',
+            description: 'You can now ask questions based on this audio/video content.',
+          });
+        }
+      } else {
+        toast({
+          title: 'File added to knowledge base',
+          description: 'You can now ask questions based on this document.',
+        });
+      }
+
       setUploadProgress(100);
       setUploadStatus('success');
-
-      toast({
-        title: 'File added to knowledge base',
-        description: 'You can now ask questions based on this document.',
-      });
 
       // Auto-close after success
       setTimeout(() => {
@@ -166,6 +240,8 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
   const getFileIcon = () => {
     if (!selectedFile) return <Upload className="w-8 h-8 text-muted-foreground" />;
     if (selectedFile.type.startsWith('image/')) return <Image className="w-8 h-8 text-primary" />;
+    if (selectedFile.type.startsWith('video/')) return <Video className="w-8 h-8 text-primary" />;
+    if (selectedFile.type.startsWith('audio/')) return <Music className="w-8 h-8 text-primary" />;
     return <FileText className="w-8 h-8 text-primary" />;
   };
 
@@ -208,7 +284,7 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.txt,.png,.jpg,.jpeg,.webp"
+                  accept=".pdf,.txt,.png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,.mp3,.wav,.m4a"
                   onChange={handleFileSelect}
                   className="hidden"
                 />
@@ -227,7 +303,10 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
                     <div>
                       <p className="font-medium text-foreground">Drop a file or click to browse</p>
                       <p className="text-sm text-muted-foreground">
-                        PDF, TXT, PNG, JPG, WEBP (max 10MB)
+                        Documents, images, videos & audio
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PDF, TXT, PNG, JPG • MP4, MOV, WEBM • MP3, WAV, M4A
                       </p>
                     </div>
                   )}
@@ -243,13 +322,20 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
               )}
 
               {/* Progress bar */}
-              {uploadStatus === 'uploading' && (
+              {(uploadStatus === 'uploading' || uploadStatus === 'transcribing') && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Uploading...</span>
+                    <span className="text-muted-foreground">
+                      {uploadStatus === 'transcribing' ? 'Transcribing audio...' : 'Uploading...'}
+                    </span>
                     <span className="text-muted-foreground">{uploadProgress}%</span>
                   </div>
                   <Progress value={uploadProgress} className="h-2" />
+                  {uploadStatus === 'transcribing' && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      This may take a moment for longer files
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -259,19 +345,19 @@ const FileUploadDialog = ({ open, onOpenChange, onUploadComplete }: FileUploadDi
                   variant="outline"
                   onClick={handleClose}
                   className="flex-1"
-                  disabled={uploadStatus === 'uploading'}
+                  disabled={uploadStatus === 'uploading' || uploadStatus === 'transcribing'}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleUpload}
                   className="flex-1"
-                  disabled={!selectedFile || uploadStatus === 'uploading'}
+                  disabled={!selectedFile || uploadStatus === 'uploading' || uploadStatus === 'transcribing'}
                 >
-                  {uploadStatus === 'uploading' ? (
+                  {uploadStatus === 'uploading' || uploadStatus === 'transcribing' ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Uploading...
+                      {uploadStatus === 'transcribing' ? 'Transcribing...' : 'Uploading...'}
                     </>
                   ) : (
                     <>
