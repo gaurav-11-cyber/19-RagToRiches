@@ -67,22 +67,13 @@ function detectLanguage(text: string): string {
 }
 
 function detectIntent(query: string): QueryIntent {
-  const lowerQuery = query.toLowerCase();
-  
-  const needsStockData = STOCK_KEYWORDS.some(kw => lowerQuery.includes(kw));
-  const needsGoldData = GOLD_KEYWORDS.some(kw => lowerQuery.includes(kw));
-  const needsNewsData = NEWS_KEYWORDS.some(kw => lowerQuery.includes(kw));
-  const needsPoliticsData = POLITICS_KEYWORDS.some(kw => lowerQuery.includes(kw));
-  
-  // If no live data keywords detected, assume RAG is needed
-  const needsRAG = !needsStockData && !needsGoldData && !needsNewsData && !needsPoliticsData;
-  
+  // STRICT RAG MODE: All queries use RAG only, no live data APIs
   return {
-    needsStockData,
-    needsGoldData,
-    needsNewsData,
-    needsPoliticsData,
-    needsRAG,
+    needsStockData: false,
+    needsGoldData: false,
+    needsNewsData: false,
+    needsPoliticsData: false,
+    needsRAG: true,
     detectedLanguage: detectLanguage(query),
   };
 }
@@ -290,59 +281,57 @@ serve(async (req) => {
 
     const langInstruction = languageInstructions[effectiveLanguage as keyof typeof languageInstructions] || languageInstructions.english;
 
-    const systemPrompt = `You are FS RAG, a hybrid AI assistant that combines RAG (Retrieval-Augmented Generation) with live data APIs. You provide accurate, evidence-based answers using multiple data sources.
+    // Check if documents are available
+    const hasDocuments = documents && documents.length > 0 && documents.some((doc: { content: string }) => doc.content && doc.content.trim().length > 0);
+
+    const systemPrompt = `You are FS RAG, a STRICT Retrieval-Augmented Generation assistant. You ONLY answer questions based on the uploaded documents provided below.
 
 LANGUAGE INSTRUCTION:
 🌐 Response language: ${effectiveLanguage.toUpperCase()}
 ${langInstruction}
 
+⚠️ CRITICAL STRICT RAG MODE RULES - YOU MUST FOLLOW THESE EXACTLY:
+1. You may ONLY use information from the UPLOADED DOCUMENTS provided below
+2. DO NOT use any general knowledge, pretrained knowledge, or external information
+3. DO NOT answer from memory or make assumptions
+4. DO NOT provide information about stocks, gold prices, news, politics, or any real-time data
+5. If the user's question cannot be answered using ONLY the uploaded documents, you MUST respond with EXACTLY:
+   "No relevant information found in the knowledge base."
+6. NEVER hallucinate or make up information
+7. NEVER say "based on my knowledge" or similar phrases
+8. Every claim MUST have a direct quote from the documents as evidence
+
 IMPORTANT LANGUAGE RULES:
 1. ALWAYS respond in the specified language (${effectiveLanguage.toUpperCase()})
 2. Supported languages: English, Hindi (हिंदी), Hinglish (Roman Hindi), Urdu (اردو)
-3. Do NOT translate unless the user explicitly asks for translation
-4. Keep technical terms and data (numbers, dates, names) as-is
-5. For Hindi: Use Devanagari script (देवनागरी)
-6. For Hinglish: Use Roman script with Hindi-English mix (like "aaj gold ka rate kya hai")
-7. For Urdu: Use Arabic/Nastaliq script (نستعلیق)
+3. Keep the "No relevant information found in the knowledge base." message in English regardless of language preference
 
-AVAILABLE DATA SOURCES:
-${dataSources.length > 0 ? dataSources.map(s => `• ${s}`).join('\n') : '• General Knowledge (no specific data source)'}
+${hasDocuments ? `
+--- UPLOADED DOCUMENTS (YOUR ONLY SOURCE OF TRUTH) ---
+${documentContext}
+--- END OF DOCUMENTS ---
+` : `
+⚠️ NO DOCUMENTS UPLOADED
+There are no documents in the knowledge base. You must respond:
+"No relevant information found in the knowledge base."
+`}
 
-CRITICAL RULES:
-1. For document-based questions: ONLY answer based on information found in the provided documents
-2. For live data questions (stocks, gold, news, politics): Use the real-time data provided below
-3. If combining both: Clearly separate information from each source
-4. ALWAYS indicate the data source used in your response
-5. NEVER make up or hallucinate information
-6. If the answer is not available from any source, respond appropriately in the response language
-
-RESPONSE FORMAT:
-Start every response with a data source indicator (adapt to response language):
-
-📌 **Data Source(s):** [List the sources used]
-${effectiveLanguage === 'hindi' ? '📌 **डेटा स्रोत:** [उपयोग किए गए स्रोत]' : ''}
-${effectiveLanguage === 'urdu' ? '📌 **ڈیٹا ذرائع:** [استعمال شدہ ذرائع]' : ''}
-${effectiveLanguage === 'hinglish' ? '📌 **Data Source(s):** [Jo sources use kiye]' : ''}
+RESPONSE FORMAT (only if relevant information IS found in documents):
+Start with:
+📌 **Data Source:** Uploaded Documents (RAG)
 
 Then provide your answer followed by:
 
-For document-based answers:
 Evidence:
-- Document: [document name]
+- Document: [exact document name]
 - Page/Section: [if available]
-- Source text: "[exact quote from document]"
+- Source text: "[exact quote from document - REQUIRED]"
 
 Confidence:
 [High/Medium/Low] - based on how directly the evidence supports the answer
 
-For live data answers:
-- Include the live data in a clear, formatted way
-- Note the last updated timestamp
-
-${liveDataContext ? `\n--- LIVE DATA FROM APIs ---${liveDataContext}` : ''}
-${documentContext}
-
-If no documents are provided and no live data is relevant, inform the user about what data sources are available and how to access them.`;
+REMEMBER: If you cannot find the answer in the uploaded documents, respond ONLY with:
+"No relevant information found in the knowledge base."`;
 
     console.log("Calling AI gateway with hybrid context...");
     console.log("Data sources:", dataSources);
